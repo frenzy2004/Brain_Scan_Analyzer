@@ -4,5 +4,6 @@ protobuf<4
 numpy
 matplotlib
 nibabel
+opencv-python-headless
 
 
