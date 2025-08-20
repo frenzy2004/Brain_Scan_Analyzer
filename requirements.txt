@@ -1,0 +1,6 @@
+streamlit
+tensorflow>=2.8.0
+nibabel>=3.0.0
+opencv-python-headless
+matplotlib
+numpy
