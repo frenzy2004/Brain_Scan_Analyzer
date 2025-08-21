@@ -1,4 +1,3 @@
-
 import streamlit as st
 import numpy as np
 import cv2
@@ -13,7 +12,6 @@ import time
 from scipy.spatial.distance import directed_hausdorff
 from scipy import ndimage
 import io
-
 # Page config
 st.set_page_config(
     page_title="🧠 NeuroGrade Pro - Brain Tumor Analysis",
@@ -317,9 +315,6 @@ def process_multi_modal_input(modality_files):
     if len(stacked_data) >= 2:  # Need at least FLAIR and T1CE
         return np.stack(stacked_data, axis=-1), nii
     return None, None
-
-            
-
 
 # ===================== VISUALIZATION FUNCTIONS =====================
 def create_overlay_visualization(original, segmentation, slice_idx, alpha=0.5):
