@@ -253,7 +253,7 @@ def load_model():
         st.warning(f"Model loading failed: {e}. Running in demo mode.")
         return None, False
 
-# ===================== FILE VALIDATION =====================
+# ===================== FILE VALIDATION (FIXED) =====================
 def validate_uploaded_files(files):
     """Validate that all 4 required modalities are present"""
     required_modalities = {'t1', 't1ce', 't2', 'flair'}
@@ -261,10 +261,16 @@ def validate_uploaded_files(files):
     
     for file in files:
         filename = file.name.lower()
-        for modality in required_modalities:
-            if modality in filename:
-                found_modalities[modality] = file
-                break
+        
+        # More flexible matching for different naming conventions
+        if 't1ce' in filename or 't1c' in filename or 't1gd' in filename or 't1_ce' in filename:
+            found_modalities['t1ce'] = file
+        elif 't2' in filename:
+            found_modalities['t2'] = file
+        elif 'flair' in filename:
+            found_modalities['flair'] = file
+        elif 't1' in filename and 't1ce' not in filename and 't1c' not in filename:
+            found_modalities['t1'] = file
     
     missing = required_modalities - found_modalities.keys()
     
@@ -274,7 +280,10 @@ def process_multi_modal_input(modality_files):
     """Process and stack 4 modality files into single input"""
     stacked_data = []
     
-    for modality in ['flair', 't1ce', 't2', 't1']:  # Order matters for model
+    # Try both possible orders (some models trained differently)
+    modality_order = ['flair', 't1ce'] if 't1ce' in modality_files else ['flair', 't1']
+    
+    for modality in modality_order:
         if modality in modality_files:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".nii") as tmp:
                 tmp.write(modality_files[modality].read())
@@ -289,6 +298,23 @@ def process_multi_modal_input(modality_files):
             stacked_data.append(data)
             
             os.unlink(temp_path)
+    
+    # If we only have 2 modalities but model expects 2, that's OK
+    # If we have all 4, stack them all
+    if len(modality_files) == 4:
+        # Process remaining modalities
+        for modality in ['t2', 't1']:
+            if modality in modality_files and modality not in modality_order:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".nii") as tmp:
+                    tmp.write(modality_files[modality].read())
+                    temp_path = tmp.name
+                
+                nii = nib.load(temp_path)
+                data = nii.get_fdata()
+                data = (data - np.min(data)) / (np.max(data) - np.min(data) + 1e-8)
+                stacked_data.append(data)
+                
+                os.unlink(temp_path)
     
     # Stack along channel dimension
     if stacked_data:
