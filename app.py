@@ -700,38 +700,37 @@ def main():
             st.markdown("#### 📏 Boundary Accuracy Metrics")
             
             def calculate_real_hausdorff(segmentation_volume):
-                """Calculate actual Hausdorff distance"""
-                # For demo, we'll calculate between predicted and slightly eroded version
-                # In real scenario, you'd compare with ground truth
+               """Calculate actual Hausdorff distance"""
+               from scipy.spatial.distance import directed_hausdorff
+               from scipy import ndimage
+    
+               # Create tumor mask (all tumor classes)
+               tumor_mask = (segmentation_volume > 0).astype(bool)
+    
+               if np.sum(tumor_mask) > 0:
+                   # Create slightly eroded version as "ground truth" for demo
+                   eroded = ndimage.binary_erosion(tumor_mask, iterations=1)
+        
+                   # Get surface points using XOR instead of subtraction
+                   tumor_surface = tumor_mask ^ ndimage.binary_erosion(tumor_mask)
+                   eroded_surface = eroded ^ ndimage.binary_erosion(eroded)
+        
+                   # Get coordinates of surface points
+                   tumor_coords = np.column_stack(np.where(tumor_surface))
+                   eroded_coords = np.column_stack(np.where(eroded_surface))
+        
+               if len(tumor_coords) > 0 and len(eroded_coords) > 0:
+                   # Calculate Hausdorff distance
+                   hd1 = directed_hausdorff(tumor_coords, eroded_coords)[0]
+                   hd2 = directed_hausdorff(eroded_coords, tumor_coords)[0]
+                   hausdorff = max(hd1, hd2)
+            
+                   # Convert to mm (assuming 1mm voxel spacing)
+                   return hausdorff
+    
+           return 0
+
                 
-                from scipy.spatial.distance import directed_hausdorff
-                from scipy import ndimage
-                
-                # Create tumor mask (all tumor classes)
-                tumor_mask = (segmentation_volume > 0).astype(float)
-                
-                if np.sum(tumor_mask) > 0:
-                    # Create slightly eroded version as "ground truth" for demo
-                    eroded = ndimage.binary_erosion(tumor_mask, iterations=1)
-                    
-                    # Get surface points
-                    tumor_surface = tumor_mask - ndimage.binary_erosion(tumor_mask)
-                    eroded_surface = eroded - ndimage.binary_erosion(eroded)
-                    
-                    # Get coordinates of surface points
-                    tumor_coords = np.column_stack(np.where(tumor_surface))
-                    eroded_coords = np.column_stack(np.where(eroded_surface))
-                    
-                    if len(tumor_coords) > 0 and len(eroded_coords) > 0:
-                        # Calculate Hausdorff distance
-                        hd1 = directed_hausdorff(tumor_coords, eroded_coords)[0]
-                        hd2 = directed_hausdorff(eroded_coords, tumor_coords)[0]
-                        hausdorff = max(hd1, hd2)
-                        
-                        # Convert to mm (assuming 1mm voxel spacing)
-                        return hausdorff
-                
-                return 0
             
             # Calculate and display Hausdorff
             hausdorff_dist = calculate_real_hausdorff(segmentation)
