@@ -25,8 +25,6 @@ from reportlab.pdfgen import canvas
 import base64
 from PIL import Image as PILImage
 import shutil
-import psutil
-import gc
 
 # Page config
 st.set_page_config(
@@ -36,7 +34,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
+# Custom CSS for professional UI and mobile responsiveness
 st.markdown("""
 <style>
     .main {padding: 0rem 1rem;}
@@ -75,6 +73,7 @@ st.markdown("""
         border-radius: 10px;
         margin: 10px 0;
     }
+    /* Mobile-friendly styles */
     @media (max-width: 768px) {
         .stButton > button {
             font-size: 14px;
@@ -90,13 +89,19 @@ st.markdown("""
             flex-direction: column;
         }
     }
+    
+    /* Make file uploader more touch-friendly */
     .uploadedFile {
         padding: 15px;
         margin: 10px 0;
     }
+    
+    /* Larger touch targets for sliders */
     .stSlider > div > div {
         padding: 10px 0;
     }
+    
+    /* Animation controls styling */
     .animation-controls {
         background: #f8f9fa;
         padding: 15px;
@@ -104,11 +109,25 @@ st.markdown("""
         margin-bottom: 15px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
+    
+    /* Video player style */
     .video-container {
         position: relative;
         background: #000;
         border-radius: 10px;
         overflow: hidden;
+    }
+    
+    .video-controls {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(transparent, rgba(0,0,0,0.7));
+        padding: 10px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -118,7 +137,7 @@ IMG_SIZE = 128
 VOLUME_SLICES = 100
 VOLUME_START_AT = 22
 
-# Color mapping
+# Color mapping for tumor classes
 TUMOR_COLORS = {
     0: [0, 0, 0],        # Black - Background
     1: [255, 0, 0],      # Red - Necrotic/Core
@@ -132,18 +151,6 @@ TUMOR_LABELS = {
     2: 'Edema',
     3: 'Enhancing Tumor'
 }
-
-# Memory optimization function
-def limit_memory():
-    process = psutil.Process(os.getpid())
-    memory_info = process.memory_info()
-    memory_mb = memory_info.rss / (1024 * 1024)
-    
-    if memory_mb > 800:  # 800MB threshold for Render
-        plt.close('all')
-        gc.collect()
-        return True
-    return False
 
 # ===================== CUSTOM METRICS FUNCTIONS =====================
 import tensorflow.keras.backend as K
@@ -371,6 +378,11 @@ def load_real_brats_data():
         if not all_files:
             raise ValueError("No NIfTI files found in the ZIP")
         
+        # Debug: Show found files
+        st.write("Found files in ZIP:")
+        for file in all_files:
+            st.write(os.path.basename(file))
+        
         # Group files by patient ID
         patient_files = {}
         
@@ -378,21 +390,31 @@ def load_real_brats_data():
             file_name = os.path.basename(file_path)
             
             # Try to extract patient ID and modality from filename
+            # Pattern: BraTS20_Training_004_flair.nii
+            # We'll try multiple approaches
+            
+            # Approach 1: Split by underscores
             parts = file_name.split('_')
             
+            # Approach 2: Check if it matches expected pattern
             if len(parts) >= 4 and parts[0].startswith('BraTS'):
+                # Extract patient ID: first 3 parts
                 patient_id = '_'.join(parts[:3])
+                # Extract modality: 4th part without extension
                 modality = parts[3].split('.')[0].lower()
                 
+                # Validate modality
                 if modality in ['flair', 't1', 't1ce', 't2']:
                     if patient_id not in patient_files:
                         patient_files[patient_id] = {}
                     patient_files[patient_id][modality] = file_path
                     continue
             
-            # More flexible pattern matching
+            # Approach 3: More flexible pattern matching
+            # Look for modality keywords in the filename
             for modality in ['flair', 't1', 't1ce', 't2']:
                 if modality in file_name.lower():
+                    # Extract patient ID - everything before the modality
                     modality_pos = file_name.lower().find(modality)
                     if modality_pos > 0:
                         patient_id = file_name[:modality_pos].rstrip('_-')
@@ -404,6 +426,11 @@ def load_real_brats_data():
         if not patient_files:
             raise ValueError("No valid patient files found in the ZIP")
         
+        # Debug: Show detected patients and their modalities
+        st.write("Detected patients and modalities:")
+        for patient_id, modalities in patient_files.items():
+            st.write(f"{patient_id}: {list(modalities.keys())}")
+        
         # Find a patient with all modalities
         required_modalities = ['flair', 't1', 't1ce', 't2']
         valid_patient = None
@@ -414,6 +441,7 @@ def load_real_brats_data():
                 break
         
         if not valid_patient:
+            # If no patient has all modalities, use the first patient and show warning
             valid_patient = list(patient_files.keys())[0]
             missing = [mod for mod in required_modalities if mod not in patient_files[valid_patient]]
             st.warning(f"Patient {valid_patient} is missing modalities: {', '.join(missing)}")
@@ -488,7 +516,7 @@ def load_real_brats_data():
         # Clean up temporary directory
         shutil.rmtree(temp_dir, ignore_errors=True)
 
-# ===================== FILE VALIDATION =====================
+# ===================== FILE VALIDATION (FIXED) =====================
 def validate_uploaded_files(files):
     """Validate that all 4 required modalities are present"""
     found_modalities = {}
@@ -602,9 +630,6 @@ def create_overlay_visualization(original, segmentation, slice_idx, alpha=0.5):
 # ===================== FLUID VIDEO-LIKE ANIMATION =====================
 def create_video_frame(mri_data, segmentation, slice_idx, alpha=0.5):
     """Create a single video frame efficiently"""
-    # Check memory before creating new frame
-    limit_memory()
-    
     # Create figure with optimized size
     fig, axes = plt.subplots(1, 3, figsize=(12, 4), dpi=80)
     
@@ -1467,7 +1492,7 @@ def generate_analysis_report(segmentation, mri_data):
     report.append("=" * 60)
     report.append(f"\nGenerated: {time.strftime('%Y-%m-%d %H:%M:%S')}")
     report.append(f"\nVolume Dimensions: {mri_data.shape[:-1]}")
-    report.append(f"\nVoxel Count: {np.prod(mri_data.shape[:-1]):,}")
+    report.append(f"Voxel Count: {np.prod(mri_data.shape[:-1]):,}")
     
     # Volume statistics
     report.append("\n" + "=" * 60)
