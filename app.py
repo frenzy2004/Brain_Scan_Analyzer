@@ -211,6 +211,38 @@ def calculate_hausdorff_distance(pred, ground_truth=None):
         pass
     
     return {'distance': 'N/A', 'unit': ''}
+
+def calculate_real_hausdorff(segmentation_volume):
+    """Calculate actual Hausdorff distance"""
+    from scipy.spatial.distance import directed_hausdorff
+    from scipy import ndimage
+    
+    # Create tumor mask (all tumor classes)
+    tumor_mask = (segmentation_volume > 0).astype(bool)
+    
+    if np.sum(tumor_mask) > 0:
+        # Create slightly eroded version as "ground truth" for demo
+        eroded = ndimage.binary_erosion(tumor_mask, iterations=1)
+        
+        # Get surface points using XOR instead of subtraction
+        tumor_surface = tumor_mask ^ ndimage.binary_erosion(tumor_mask)
+        eroded_surface = eroded ^ ndimage.binary_erosion(eroded)
+        
+        # Get coordinates of surface points
+        tumor_coords = np.column_stack(np.where(tumor_surface))
+        eroded_coords = np.column_stack(np.where(eroded_surface))
+        
+        if len(tumor_coords) > 0 and len(eroded_coords) > 0:
+            # Calculate Hausdorff distance
+            hd1 = directed_hausdorff(tumor_coords, eroded_coords)[0]
+            hd2 = directed_hausdorff(eroded_coords, tumor_coords)[0]
+            hausdorff = max(hd1, hd2)
+            
+            # Convert to mm (assuming 1mm voxel spacing)
+            return hausdorff
+    
+    return 0
+
 # ===================== MODEL LOADING =====================
 @st.cache_resource
 def load_model():
@@ -303,31 +335,33 @@ def create_overlay_visualization(original, segmentation, slice_idx, alpha=0.5):
     """Create overlay visualization with proper colors"""
     fig, axes = plt.subplots(1, 4, figsize=(20, 5))
     
-    # Original
-    axes[0].imshow(original[:, :, slice_idx, 0].T, cmap='gray', origin='lower')
+    # Original - no transpose
+    axes[0].imshow(original[:, :, slice_idx, 0], cmap='gray', origin='lower')
     axes[0].set_title('FLAIR', fontsize=14, fontweight='bold')
     axes[0].axis('off')
     
-    # Segmentation
-    seg_colored = np.zeros((*segmentation[:, :, slice_idx].shape, 3))
+    # Segmentation - create RGB image properly
+    seg_slice = segmentation[:, :, slice_idx]
+    seg_colored = np.zeros((*seg_slice.shape, 3))  # (H, W, 3)
+    
     for class_id in range(4):
-        mask = segmentation[:, :, slice_idx] == class_id
+        mask = seg_slice == class_id
         color = np.array(TUMOR_COLORS[class_id]) / 255.0
         seg_colored[mask] = color
     
-    axes[1].imshow(seg_colored.transpose(1, 0, 2), origin='lower')
+    axes[1].imshow(seg_colored, origin='lower')  # No transpose needed
     axes[1].set_title('AI Segmentation', fontsize=14, fontweight='bold')
     axes[1].axis('off')
     
     # Overlay
-    axes[2].imshow(original[:, :, slice_idx, 0].T, cmap='gray', origin='lower')
-    masked = np.ma.masked_where(segmentation[:, :, slice_idx].T == 0, segmentation[:, :, slice_idx].T)
+    axes[2].imshow(original[:, :, slice_idx, 0], cmap='gray', origin='lower')
+    masked = np.ma.masked_where(seg_slice == 0, seg_slice)  # No transpose
     axes[2].imshow(masked, cmap='jet', alpha=alpha, origin='lower', vmin=0, vmax=3)
     axes[2].set_title('Overlay', fontsize=14, fontweight='bold')
     axes[2].axis('off')
     
-    # 3D view representation (placeholder - showing same slice with grid)
-    axes[3].imshow(original[:, :, slice_idx, 0].T, cmap='gray', origin='lower')
+    # 3D view representation - no transpose
+    axes[3].imshow(original[:, :, slice_idx, 0], cmap='gray', origin='lower')
     axes[3].set_title(f'Slice {slice_idx} of {original.shape[2]}', fontsize=14, fontweight='bold')
     axes[3].grid(True, alpha=0.3)
     axes[3].axis('off')
@@ -679,37 +713,6 @@ def main():
             # ============ FIX HAUSDORFF DISTANCE ============
             st.markdown("#### 📏 Boundary Accuracy Metrics")
             
-            def calculate_real_hausdorff(segmentation_volume):
-                """Calculate actual Hausdorff distance"""
-                from scipy.spatial.distance import directed_hausdorff
-                from scipy import ndimage
-                
-                # Create tumor mask (all tumor classes)
-                tumor_mask = (segmentation_volume > 0).astype(bool)
-                
-                if np.sum(tumor_mask) > 0:
-                    # Create slightly eroded version as "ground truth" for demo
-                    eroded = ndimage.binary_erosion(tumor_mask, iterations=1)
-                    
-                    # Get surface points using XOR instead of subtraction
-                    tumor_surface = tumor_mask ^ ndimage.binary_erosion(tumor_mask)
-                    eroded_surface = eroded ^ ndimage.binary_erosion(eroded)
-                    
-                    # Get coordinates of surface points
-                    tumor_coords = np.column_stack(np.where(tumor_surface))
-                    eroded_coords = np.column_stack(np.where(eroded_surface))
-                    
-                    if len(tumor_coords) > 0 and len(eroded_coords) > 0:
-                        # Calculate Hausdorff distance
-                        hd1 = directed_hausdorff(tumor_coords, eroded_coords)[0]
-                        hd2 = directed_hausdorff(eroded_coords, tumor_coords)[0]
-                        hausdorff = max(hd1, hd2)
-                        
-                        # Convert to mm (assuming 1mm voxel spacing)
-                        return hausdorff
-                
-                return 0
-                
             # Calculate and display Hausdorff
             hausdorff_dist = calculate_real_hausdorff(segmentation)
             
@@ -791,26 +794,26 @@ def main():
                     
                     # Original
                     if mri_data.shape[-1] > 0:
-                        axes[0].imshow(mri_data[:, :, i, 0].T, cmap='gray', origin='lower')
+                        axes[0].imshow(mri_data[:, :, i, 0], cmap='gray', origin='lower')
                     axes[0].set_title(f'MRI - Slice {i}')
                     axes[0].axis('off')
                     
                     # Segmentation
-                    seg_colored = np.zeros((*segmentation[:, :, i].shape, 3))
+                    seg_slice = segmentation[:, :, i]
+                    seg_colored = np.zeros((*seg_slice.shape, 3))
                     for class_id in range(1, 4):
-                        mask = segmentation[:, :, i] == class_id
+                        mask = seg_slice == class_id
                         color = np.array(TUMOR_COLORS[class_id]) / 255.0
                         seg_colored[mask] = color
                     
-                    axes[1].imshow(seg_colored.T, origin='lower')
+                    axes[1].imshow(seg_colored, origin='lower')
                     axes[1].set_title('Segmentation')
                     axes[1].axis('off')
                     
                     # Overlay
                     if mri_data.shape[-1] > 0:
-                        axes[2].imshow(mri_data[:, :, i, 0].T, cmap='gray', origin='lower')
-                        masked = np.ma.masked_where(segmentation[:, :, i].T == 0, 
-                                                  segmentation[:, :, i].T)
+                        axes[2].imshow(mri_data[:, :, i, 0], cmap='gray', origin='lower')
+                        masked = np.ma.masked_where(seg_slice == 0, seg_slice)
                         axes[2].imshow(masked, cmap='jet', alpha=0.5, origin='lower')
                     axes[2].set_title('Overlay')
                     axes[2].axis('off')
