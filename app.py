@@ -1,3 +1,7 @@
+import os
+# Force CPU usage by disabling GPU
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+
 import streamlit as st
 import numpy as np
 import cv2
@@ -25,6 +29,15 @@ from reportlab.pdfgen import canvas
 import base64
 from PIL import Image as PILImage
 import shutil
+
+# Explicitly disable GPU usage
+try:
+    tf.config.set_visible_devices([], 'GPU')
+    visible_devices = tf.config.get_visible_devices()
+    for device in visible_devices:
+        assert device.device_type != 'GPU'
+except:
+    pass
 
 # Page config
 st.set_page_config(
@@ -332,19 +345,21 @@ def calculate_real_hausdorff(segmentation_volume):
 def load_model():
     """Load the trained model with caching"""
     try:
-        model = keras.models.load_model(
-            "brain_tumor_unet_final.h5",
-            custom_objects={
-                "dice_coef": dice_coef,
-                "dice_coef_necrotic": dice_coef_necrotic,
-                "dice_coef_edema": dice_coef_edema,
-                "dice_coef_enhancing": dice_coef_enhancing,
-                "precision": precision,
-                "sensitivity": sensitivity,
-                "specificity": specificity
-            },
-            compile=False
-        )
+        # Force CPU usage
+        with tf.device('/CPU:0'):
+            model = keras.models.load_model(
+                "brain_tumor_unet_final.h5",
+                custom_objects={
+                    "dice_coef": dice_coef,
+                    "dice_coef_necrotic": dice_coef_necrotic,
+                    "dice_coef_edema": dice_coef_edema,
+                    "dice_coef_enhancing": dice_coef_enhancing,
+                    "precision": precision,
+                    "sensitivity": sensitivity,
+                    "specificity": specificity
+                },
+                compile=False
+            )
         return model, True
     except Exception as e:
         st.warning(f"Model loading failed: {e}. Running in demo mode.")
@@ -890,6 +905,9 @@ def main():
     with st.sidebar:
         st.markdown("## 📊 **Model Information**")
         
+        # Add CPU indicator
+        st.info("⚠️ Running on CPU (GPU not available)")
+        
         # Performance metrics
         st.markdown("### Performance Metrics")
         col1, col2 = st.columns(2)
@@ -977,7 +995,7 @@ def main():
                 "Select all 4 NIfTI files",
                 type=["nii", "gz"],
                 accept_multiple_files=True,
-                help="Upload T1, T1ce, T2, and FLAIR modalities"
+                help="Upload T1, t1ce, T2, and FLAIR modalities"
             )
             
             if uploaded_files:
