@@ -11,6 +11,7 @@ import os
 import time
 from scipy.spatial.distance import directed_hausdorff
 from scipy import ndimage
+from skimage import measure
 import io
 # Page config
 st.set_page_config(
