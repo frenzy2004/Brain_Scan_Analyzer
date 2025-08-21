@@ -1480,7 +1480,7 @@ def main():
                         time.sleep(frame_duration)
                         
                         # Force a rerun to update the UI
-                        st.experimental_rerun()
+                        st.rerun()
                 else:
                     # Show current frame when not playing
                     if show_multiplanar:
