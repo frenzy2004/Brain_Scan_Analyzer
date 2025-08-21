@@ -20,7 +20,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
 # Custom CSS for professional UI
 st.markdown("""
 <style>
@@ -62,12 +61,10 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-
 # Constants
 IMG_SIZE = 128
 VOLUME_SLICES = 100
 VOLUME_START_AT = 22
-
 # Color mapping for tumor classes
 TUMOR_COLORS = {
     0: [0, 0, 0],        # Black - Background
@@ -75,17 +72,14 @@ TUMOR_COLORS = {
     2: [255, 255, 0],    # Yellow - Edema
     3: [0, 0, 255]       # Blue - Enhancing
 }
-
 TUMOR_LABELS = {
     0: 'Background',
     1: 'Necrotic/Core',
     2: 'Edema',
     3: 'Enhancing Tumor'
 }
-
 # ===================== CUSTOM METRICS FUNCTIONS =====================
 import tensorflow.keras.backend as K
-
 def dice_coef(y_true, y_pred, smooth=1.0):
     class_num = 4
     for i in range(class_num):
@@ -99,34 +93,27 @@ def dice_coef(y_true, y_pred, smooth=1.0):
             total_loss = total_loss + loss
     total_loss = total_loss / class_num
     return total_loss
-
 def dice_coef_necrotic(y_true, y_pred, epsilon=1e-6):
     intersection = K.sum(K.abs(y_true[:,:,:,1] * y_pred[:,:,:,1]))
     return (2. * intersection) / (K.sum(K.square(y_true[:,:,:,1])) + K.sum(K.square(y_pred[:,:,:,1])) + epsilon)
-
 def dice_coef_edema(y_true, y_pred, epsilon=1e-6):
     intersection = K.sum(K.abs(y_true[:,:,:,2] * y_pred[:,:,:,2]))
     return (2. * intersection) / (K.sum(K.square(y_true[:,:,:,2])) + K.sum(K.square(y_pred[:,:,:,2])) + epsilon)
-
 def dice_coef_enhancing(y_true, y_pred, epsilon=1e-6):
     intersection = K.sum(K.abs(y_true[:,:,:,3] * y_pred[:,:,:,3]))
     return (2. * intersection) / (K.sum(K.square(y_true[:,:,:,3])) + K.sum(K.square(y_pred[:,:,:,3])) + epsilon)
-
 def precision(y_true, y_pred):
     true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
     predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
     return true_positives / (predicted_positives + K.epsilon())
-
 def sensitivity(y_true, y_pred):
     true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
     possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
     return true_positives / (possible_positives + K.epsilon())
-
 def specificity(y_true, y_pred):
     true_negatives = K.sum(K.round(K.clip((1-y_true) * (1-y_pred), 0, 1)))
     possible_negatives = K.sum(K.round(K.clip(1-y_true, 0, 1)))
     return true_negatives / (possible_negatives + K.epsilon())
-
 # ===================== VOLUMETRIC ANALYSIS FUNCTIONS =====================
 def calculate_volume_stats(segmentation, voxel_dims=(1, 1, 1)):
     """Calculate volumetric statistics for each tumor class"""
@@ -179,7 +166,6 @@ def calculate_volume_stats(segmentation, voxel_dims=(1, 1, 1)):
     }
     
     return stats
-
 def calculate_dice_per_class(pred, ground_truth=None):
     """Calculate Dice coefficient for each class"""
     if ground_truth is None:
@@ -202,7 +188,6 @@ def calculate_dice_per_class(pred, ground_truth=None):
         dice_scores[TUMOR_LABELS[class_id]] = dice
     
     return dice_scores
-
 def calculate_hausdorff_distance(pred, ground_truth=None):
     """Calculate Hausdorff distance for boundary accuracy"""
     if ground_truth is None:
@@ -226,7 +211,6 @@ def calculate_hausdorff_distance(pred, ground_truth=None):
         pass
     
     return {'distance': 'N/A', 'unit': ''}
-
 # ===================== MODEL LOADING =====================
 @st.cache_resource
 def load_model():
@@ -249,7 +233,6 @@ def load_model():
     except Exception as e:
         st.warning(f"Model loading failed: {e}. Running in demo mode.")
         return None, False
-
 # ===================== FILE VALIDATION (FIXED) =====================
 def validate_uploaded_files(files):
     """Validate that all 4 required modalities are present"""
@@ -274,7 +257,6 @@ def validate_uploaded_files(files):
     missing = required - found_modalities.keys()
     
     return found_modalities, missing
-
 def process_multi_modal_input(modality_files):
     """Process and stack 4 modality files into single input"""
     stacked_data = []
@@ -316,7 +298,6 @@ def process_multi_modal_input(modality_files):
     if len(stacked_data) >= 2:  # Need at least FLAIR and T1CE
         return np.stack(stacked_data, axis=-1), nii
     return None, None
-
 # ===================== VISUALIZATION FUNCTIONS =====================
 def create_overlay_visualization(original, segmentation, slice_idx, alpha=0.5):
     """Create overlay visualization with proper colors"""
@@ -358,7 +339,6 @@ def create_overlay_visualization(original, segmentation, slice_idx, alpha=0.5):
     
     plt.tight_layout()
     return fig
-
 # ===================== MAIN APP =====================
 def main():
     # Header
@@ -700,38 +680,36 @@ def main():
             st.markdown("#### 📏 Boundary Accuracy Metrics")
             
             def calculate_real_hausdorff(segmentation_volume):
-               """Calculate actual Hausdorff distance"""
-               from scipy.spatial.distance import directed_hausdorff
-               from scipy import ndimage
-    
-               # Create tumor mask (all tumor classes)
-               tumor_mask = (segmentation_volume > 0).astype(bool)
-    
-               if np.sum(tumor_mask) > 0:
-                   # Create slightly eroded version as "ground truth" for demo
-                   eroded = ndimage.binary_erosion(tumor_mask, iterations=1)
-        
-                   # Get surface points using XOR instead of subtraction
-                   tumor_surface = tumor_mask ^ ndimage.binary_erosion(tumor_mask)
-                   eroded_surface = eroded ^ ndimage.binary_erosion(eroded)
-        
-                   # Get coordinates of surface points
-                   tumor_coords = np.column_stack(np.where(tumor_surface))
-                   eroded_coords = np.column_stack(np.where(eroded_surface))
-        
-               if len(tumor_coords) > 0 and len(eroded_coords) > 0:
-                   # Calculate Hausdorff distance
-                   hd1 = directed_hausdorff(tumor_coords, eroded_coords)[0]
-                   hd2 = directed_hausdorff(eroded_coords, tumor_coords)[0]
-                   hausdorff = max(hd1, hd2)
-            
-                   # Convert to mm (assuming 1mm voxel spacing)
-                   return hausdorff
-    
-           return 0
-
+                """Calculate actual Hausdorff distance"""
+                from scipy.spatial.distance import directed_hausdorff
+                from scipy import ndimage
                 
-            
+                # Create tumor mask (all tumor classes)
+                tumor_mask = (segmentation_volume > 0).astype(bool)
+                
+                if np.sum(tumor_mask) > 0:
+                    # Create slightly eroded version as "ground truth" for demo
+                    eroded = ndimage.binary_erosion(tumor_mask, iterations=1)
+                    
+                    # Get surface points using XOR instead of subtraction
+                    tumor_surface = tumor_mask ^ ndimage.binary_erosion(tumor_mask)
+                    eroded_surface = eroded ^ ndimage.binary_erosion(eroded)
+                    
+                    # Get coordinates of surface points
+                    tumor_coords = np.column_stack(np.where(tumor_surface))
+                    eroded_coords = np.column_stack(np.where(eroded_surface))
+                    
+                    if len(tumor_coords) > 0 and len(eroded_coords) > 0:
+                        # Calculate Hausdorff distance
+                        hd1 = directed_hausdorff(tumor_coords, eroded_coords)[0]
+                        hd2 = directed_hausdorff(eroded_coords, tumor_coords)[0]
+                        hausdorff = max(hd1, hd2)
+                        
+                        # Convert to mm (assuming 1mm voxel spacing)
+                        return hausdorff
+                
+                return 0
+                
             # Calculate and display Hausdorff
             hausdorff_dist = calculate_real_hausdorff(segmentation)
             
@@ -847,7 +825,6 @@ def main():
                 st.success("✅ Animation complete!")
         else:
             st.info("👈 Please run analysis first to see analytics")
-
 def generate_analysis_report(segmentation, mri_data):
     """Generate a comprehensive analysis report"""
     report = []
@@ -911,10 +888,8 @@ def generate_analysis_report(segmentation, mri_data):
     report.append("Always consult with qualified medical professionals for diagnosis.")
     
     return "\n".join(report)
-
 # Import pandas for data handling
 import pandas as pd
-
 # Run the main app
 if __name__ == "__main__":
     main()
