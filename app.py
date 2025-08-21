@@ -2,7 +2,7 @@ import os
 # Force CPU usage by disabling GPU
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
-# Set environment variables for headless mode
+# Set environment variables for headless mode BEFORE importing OpenCV
 os.environ["OPENCV_HEADLESS"] = "1"
 os.environ["DISPLAY"] = ":0"  # Dummy display
 
