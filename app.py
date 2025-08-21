@@ -402,14 +402,14 @@ def main():
             
             if missing:
                 st.error(f"❌ Missing required modalities: {', '.join(missing).upper()}")
-                st.info("Please upload all 4 files: T1, T1ce, T2, and FLAIR")
+                st.info("Please upload all 4 files: T1, t1ce, T2, and FLAIR")
             else:
                 st.success(f"✅ All modalities uploaded successfully!")
                 
                 # Show uploaded files
                 col1, col2, col3, col4 = st.columns(4)
                 col1.success("✓ T1")
-                col2.success("✓ T1ce")
+                col2.success("✓ t1ce")
                 col3.success("✓ T2")
                 col4.success("✓ FLAIR")
                 
