@@ -712,14 +712,19 @@ def main():
             
             # ============ FIX HAUSDORFF DISTANCE ============
             st.markdown("#### 📏 Boundary Accuracy Metrics")
-            
+
             # Calculate and display Hausdorff
             hausdorff_dist = calculate_real_hausdorff(segmentation)
+            
+            # Calculate boundary precision more accurately
+            # Using a formula that considers the maximum possible distance
+            max_possible_distance = np.sqrt(np.sum(np.array(segmentation.shape)**2))  # Diagonal of volume
+            boundary_precision = max(0, 100 * (1 - hausdorff_dist / max_possible_distance))
             
             col1, col2, col3 = st.columns(3)
             col1.metric("Hausdorff Distance", f"{hausdorff_dist:.2f} mm")
             col2.metric("Mean Surface Distance", f"{hausdorff_dist/2:.2f} mm")
-            col3.metric("Boundary Precision", f"{max(0, 100 - hausdorff_dist*5):.1f}%")
+            col3.metric("Boundary Precision", f"{boundary_precision:.1f}%")
             
             # ============ REAL PER-CLASS METRICS ============
             if show_metrics:
@@ -789,8 +794,13 @@ def main():
                 progress_bar = st.progress(0)
                 image_placeholder = st.empty()
                 
-                for i in range(0, segmentation.shape[2], 5):  # Skip every 5 slices for speed
-                    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+                # Create a figure that we'll reuse
+                fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+                
+                for i in range(0, segmentation.shape[2], 2):  # Skip every 2 slices for smoother animation
+                    # Clear previous plots
+                    for ax in axes:
+                        ax.clear()
                     
                     # Original
                     if mri_data.shape[-1] > 0:
@@ -819,12 +829,15 @@ def main():
                     axes[2].axis('off')
                     
                     plt.tight_layout()
+                    
+                    # Update the placeholder with the new figure
                     image_placeholder.pyplot(fig)
                     progress_bar.progress((i + 1) / segmentation.shape[2])
-                    plt.close()
                     
-                    time.sleep(0.1)  # Small delay for animation effect
+                    # Add a small delay for animation effect
+                    time.sleep(0.05)
                 
+                plt.close(fig)  # Close the figure to free memory
                 st.success("✅ Animation complete!")
         else:
             st.info("👈 Please run analysis first to see analytics")
