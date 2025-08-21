@@ -3,3 +3,4 @@ BraTS20_Training_004_flair.nii filter=lfs diff=lfs merge=lfs -text
 BraTS20_Training_004_t1.nii filter=lfs diff=lfs merge=lfs -text
 BraTS20_Training_004_t1ce.nii filter=lfs diff=lfs merge=lfs -text
 BraTS20_Training_004_t2.nii filter=lfs diff=lfs merge=lfs -text
+Brain[[:space:]]MRI[[:space:]]Sample[[:space:]]Scan.zip filter=lfs diff=lfs merge=lfs -text
