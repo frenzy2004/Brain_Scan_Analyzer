@@ -2,12 +2,18 @@ import os
 # Force CPU usage by disabling GPU
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
+# Set environment variables for headless mode
+os.environ["OPENCV_HEADLESS"] = "1"
+os.environ["DISPLAY"] = ":0"  # Dummy display
+
 import streamlit as st
 import numpy as np
 import cv2
 import tensorflow as tf
 from tensorflow import keras
 import nibabel as nib
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import tempfile
