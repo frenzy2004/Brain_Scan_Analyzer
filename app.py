@@ -1,5 +1,3 @@
-# app.py - Enhanced Professional Brain Tumor Segmentation
-# Copy this entire code and replace your current app.py
 
 import streamlit as st
 import numpy as np
@@ -256,23 +254,25 @@ def load_model():
 # ===================== FILE VALIDATION (FIXED) =====================
 def validate_uploaded_files(files):
     """Validate that all 4 required modalities are present"""
-    required_modalities = {'t1', 't1ce', 't2', 'flair'}
     found_modalities = {}
     
     for file in files:
-        filename = file.name.lower()
+        name = file.name
         
-        # More flexible matching for different naming conventions
-        if 't1ce' in filename or 't1c' in filename or 't1gd' in filename or 't1_ce' in filename:
+        # Direct pattern matching for BraTS format
+        if 't1ce.nii' in name or '_t1ce.' in name:
             found_modalities['t1ce'] = file
-        elif 't2' in filename:
+        elif 't2.nii' in name or '_t2.' in name:
             found_modalities['t2'] = file
-        elif 'flair' in filename:
+        elif 'flair.nii' in name or '_flair.' in name:
             found_modalities['flair'] = file
-        elif 't1' in filename and 't1ce' not in filename and 't1c' not in filename:
-            found_modalities['t1'] = file
+        elif 't1.nii' in name or '_t1.' in name:
+            if 't1ce' not in name:  # Make sure it's not t1ce
+                found_modalities['t1'] = file
     
-    missing = required_modalities - found_modalities.keys()
+    # Check what's missing
+    required = {'t1', 't1ce', 't2', 'flair'}
+    missing = required - found_modalities.keys()
     
     return found_modalities, missing
 
@@ -280,8 +280,8 @@ def process_multi_modal_input(modality_files):
     """Process and stack 4 modality files into single input"""
     stacked_data = []
     
-    # Try both possible orders (some models trained differently)
-    modality_order = ['flair', 't1ce'] if 't1ce' in modality_files else ['flair', 't1']
+    # Order matters for model - use FLAIR and T1CE for the 2-channel model
+    modality_order = ['flair', 't1ce']
     
     for modality in modality_order:
         if modality in modality_files:
@@ -299,27 +299,27 @@ def process_multi_modal_input(modality_files):
             
             os.unlink(temp_path)
     
-    # If we only have 2 modalities but model expects 2, that's OK
-    # If we have all 4, stack them all
-    if len(modality_files) == 4:
-        # Process remaining modalities
+    # If we have T2 and T1, add them too (for 4-channel support)
+    if 't2' in modality_files and 't1' in modality_files:
         for modality in ['t2', 't1']:
-            if modality in modality_files and modality not in modality_order:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".nii") as tmp:
-                    tmp.write(modality_files[modality].read())
-                    temp_path = tmp.name
-                
-                nii = nib.load(temp_path)
-                data = nii.get_fdata()
-                data = (data - np.min(data)) / (np.max(data) - np.min(data) + 1e-8)
-                stacked_data.append(data)
-                
-                os.unlink(temp_path)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".nii") as tmp:
+                tmp.write(modality_files[modality].read())
+                temp_path = tmp.name
+            
+            nii = nib.load(temp_path)
+            data = nii.get_fdata()
+            data = (data - np.min(data)) / (np.max(data) - np.min(data) + 1e-8)
+            stacked_data.append(data)
+            
+            os.unlink(temp_path)
     
     # Stack along channel dimension
-    if stacked_data:
+    if len(stacked_data) >= 2:  # Need at least FLAIR and T1CE
         return np.stack(stacked_data, axis=-1), nii
     return None, None
+
+            
+
 
 # ===================== VISUALIZATION FUNCTIONS =====================
 def create_overlay_visualization(original, segmentation, slice_idx, alpha=0.5):
